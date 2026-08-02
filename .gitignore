@@ -1,0 +1,23 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+
+# Databases & temp storage
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+backend/tmp/
+
+# Production builds
+dist/
+dist-ssr/
+
+# Environment files
+.env
+.env.local
+
+# IDEs & OS files
+.vscode/
+.idea/
+.DS_Store
+thumbs.db
