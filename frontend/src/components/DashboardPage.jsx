@@ -269,7 +269,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Link to user interface */}
-        <div className="pt-6 md:pt-0 mt-6 border-t border-slate-800/60 flex flex-col space-y-2">
+        <div className="pt-6 md:pt-0 mt-6 border-t border-slate-800/60 flex flex-col space-y-3">
           <a
             href={`/admin`}
             className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all text-center flex items-center justify-center gap-1.5"
@@ -277,6 +277,9 @@ export default function DashboardPage() {
             Manage Shop QR
             <ChevronRight className="h-3.5 w-3.5" />
           </a>
+          <span className="text-[10px] text-slate-600 text-center font-mono tracking-wider block">
+            Developed by <strong className="text-indigo-400 font-semibold uppercase">Nanda</strong>
+          </span>
         </div>
       </aside>
 

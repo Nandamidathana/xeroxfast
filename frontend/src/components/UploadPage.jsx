@@ -542,6 +542,11 @@ export default function UploadPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Footer / Watermark */}
+      <footer className="w-full text-center text-[10px] text-slate-600 mt-8 pt-4 border-t border-slate-900/40 z-10 font-mono">
+        AirSketch Print © 2026 • Developed by <strong className="text-indigo-400 font-semibold uppercase tracking-wider">Nanda</strong>
+      </footer>
     </div>
   );
 }
