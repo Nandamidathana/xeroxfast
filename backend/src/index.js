@@ -17,9 +17,33 @@ app.use(cors());
 app.use(express.json());
 
 // Determine the root uploads directory
-const UPLOAD_ROOT = process.env.UPLOAD_DIR || (process.platform === 'win32'
+let UPLOAD_ROOT = process.env.UPLOAD_DIR || (process.platform === 'win32'
   ? path.join(process.cwd(), 'tmp', 'uploads')
   : '/tmp/uploads');
+
+// Verify UPLOAD_ROOT is writable, otherwise fallback to a safe option
+try {
+  if (!fs.existsSync(UPLOAD_ROOT)) {
+    fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+  }
+  // Test write permission
+  const testFile = path.join(UPLOAD_ROOT, '.write-test-' + Date.now());
+  fs.writeFileSync(testFile, 'test');
+  fs.unlinkSync(testFile);
+} catch (err) {
+  console.warn(`Upload directory ${UPLOAD_ROOT} is not writable:`, err.message);
+  UPLOAD_ROOT = process.platform === 'win32'
+    ? path.join(process.cwd(), 'tmp', 'uploads')
+    : '/tmp/uploads';
+  console.warn(`Falling back to upload directory: ${UPLOAD_ROOT}`);
+  try {
+    if (!fs.existsSync(UPLOAD_ROOT)) {
+      fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+    }
+  } catch (e) {
+    console.error('Critical: Failed to create fallback upload directory:', e.message);
+  }
+}
 
 // In-memory rate limiter: Max 30 upload/api requests per minute per IP
 const rateLimitWindowMs = 60 * 1000;

@@ -2,19 +2,29 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'db.sqlite');
+let dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'db.sqlite');
 
 // Ensure database directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+let dbDir = path.dirname(dbPath);
+try {
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+} catch (mkdirErr) {
+  console.warn(`Failed to create database directory ${dbDir}:`, mkdirErr.message);
+  console.warn('Falling back to local project root for database storage.');
+  dbPath = path.join(__dirname, '..', 'db.sqlite');
+  dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
   } else {
-    console.log('Connected to SQLite database.');
+    console.log('Connected to SQLite database at:', dbPath);
     // Enable WAL mode
     db.run('PRAGMA journal_mode = WAL', (err) => {
       if (err) console.error('Error enabling WAL mode:', err);
