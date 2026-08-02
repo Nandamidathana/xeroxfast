@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { 
   Upload, FileText, CheckCircle2, Plus, Minus, 
@@ -12,6 +12,26 @@ export default function UploadPage() {
   // Extract shopId from URL query parameters
   const queryParams = new URLSearchParams(window.location.search);
   const shopId = queryParams.get('shop') || 'quickprint';
+
+  // Shop details profile from database
+  const [shopProfile, setShopProfile] = useState(null);
+
+  // Fetch shop profile from backend on mount
+  useEffect(() => {
+    if (!apiUrl || !shopId) return;
+    const fetchShopProfile = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/shop/profile?shopId=${shopId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setShopProfile(data);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch shop profile:', err);
+      }
+    };
+    fetchShopProfile();
+  }, [apiUrl, shopId]);
 
   // Files & Profile state
   const [nameInput, setNameInput] = useState(customerName || '');
@@ -208,7 +228,8 @@ export default function UploadPage() {
                 Welcome back, <span className="text-indigo-400">{customerName}</span>!
               </h2>
               <div className="flex items-center justify-center gap-2 mt-1 text-slate-400 text-xs">
-                <span>Shop: <strong className="text-slate-300 font-mono capitalize">{shopId}</strong></span>
+                <span>Shop: <strong className="text-slate-300 font-mono capitalize">{shopProfile?.name || shopId}</strong></span>
+                {shopProfile?.purpose && <span className="text-slate-500 font-medium font-mono text-[10px]">({shopProfile.purpose})</span>}
                 <span>•</span>
                 <button 
                   onClick={() => {
@@ -225,10 +246,10 @@ export default function UploadPage() {
           ) : (
             <>
               <h2 className="text-2xl font-bold tracking-tight text-white">
-                Upload to <span className="text-indigo-400 capitalize font-mono">{shopId}</span>
+                Upload to <span className="text-indigo-400 capitalize font-mono">{shopProfile?.name || shopId}</span>
               </h2>
               <p className="text-slate-400 text-xs mt-1">
-                Scan & Print • Instant document upload portal
+                {shopProfile?.purpose || "Scan & Print • Instant document upload portal"}
               </p>
             </>
           )}
@@ -245,7 +266,7 @@ export default function UploadPage() {
               className="glass-panel p-6 rounded-3xl border-slate-800 shadow-premium space-y-5"
             >
               <div className="space-y-1.5 text-center">
-                <h3 className="text-lg font-bold text-white tracking-tight">Welcome to XeroxFast</h3>
+                <h3 className="text-lg font-bold text-white tracking-tight">Welcome to {shopProfile?.name || 'PrintX'}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   Enter your name so the shopkeeper can easily identify your files in the print queue.
                 </p>

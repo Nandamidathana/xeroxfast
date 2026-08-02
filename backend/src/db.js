@@ -63,7 +63,7 @@ const dbAll = (sql, params = []) => {
 
 // Initialize Table
 const initDB = async () => {
-  const schema = `
+  const jobsSchema = `
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       shop_id TEXT NOT NULL,
@@ -81,9 +81,20 @@ const initDB = async () => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `;
+  const profilesSchema = `
+    CREATE TABLE IF NOT EXISTS shop_profiles (
+      shop_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      purpose TEXT,
+      phone TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
   try {
-    await dbRun(schema);
+    await dbRun(jobsSchema);
     console.log('Jobs table initialized.');
+    await dbRun(profilesSchema);
+    console.log('Shop profiles table initialized.');
 
     // Safe migration: Add customer_name column to jobs table if not present
     try {
@@ -95,7 +106,7 @@ const initDB = async () => {
       }
     }
   } catch (error) {
-    console.error('Error initializing table:', error);
+    console.error('Error initializing tables:', error);
   }
 };
 

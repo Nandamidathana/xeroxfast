@@ -15,6 +15,26 @@ export default function DashboardPage() {
   const queryParams = new URLSearchParams(window.location.search);
   const shopId = queryParams.get('shop') || 'quickprint';
 
+  // Shop details profile from database
+  const [shopProfile, setShopProfile] = useState(null);
+
+  // Fetch shop profile from backend on mount
+  useEffect(() => {
+    if (!apiUrl || !shopId) return;
+    const fetchShopProfile = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/shop/profile?shopId=${shopId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setShopProfile(data);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch shop profile:', err);
+      }
+    };
+    fetchShopProfile();
+  }, [apiUrl, shopId]);
+
   // Local UI States
   const [activeTab, setActiveTab] = useState('waiting'); // 'waiting' | 'printing' | 'done'
   const [previewJob, setPreviewJob] = useState(null); // job object
@@ -229,7 +249,9 @@ export default function DashboardPage() {
               <Printer className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white">Dashboard</h1>
+              <h1 className="text-lg font-bold tracking-tight text-white truncate max-w-[160px]" title={shopProfile?.name || "Dashboard"}>
+                {shopProfile?.name || "Dashboard"}
+              </h1>
               <p className="text-[10px] text-slate-400 capitalize font-mono">Shop ID: {shopId}</p>
             </div>
           </div>

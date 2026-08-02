@@ -37,7 +37,25 @@ export default function AdminPage() {
     setNameInput(activeProfile?.name || '');
     setPurposeInput(activeProfile?.purpose || '');
     setPhoneInput(activeProfile?.phone || '');
-  }, [currentShopId]);
+
+    // Fallback: sync from backend if profile is registered elsewhere
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/shop/profile?shopId=${currentShopId}`);
+        if (res.ok) {
+          const serverProfile = await res.json();
+          localStorage.setItem(`shop_profile_${currentShopId}`, JSON.stringify(serverProfile));
+          setProfile(serverProfile);
+          setNameInput(serverProfile.name || '');
+          setPurposeInput(serverProfile.purpose || '');
+          setPhoneInput(serverProfile.phone || '');
+        }
+      } catch (err) {
+        console.warn('Could not sync profile from server:', err);
+      }
+    };
+    fetchProfile();
+  }, [currentShopId, apiUrl]);
 
   const origin = window.location.origin;
   const userUrl = `${origin}/u?shop=${currentShopId}`;
@@ -51,7 +69,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleRegisterProfile = (e) => {
+  const handleRegisterProfile = async (e) => {
     e.preventDefault();
     if (nameInput.trim() && purposeInput.trim() && phoneInput.trim()) {
       const newProfile = {
@@ -59,6 +77,21 @@ export default function AdminPage() {
         purpose: purposeInput.trim(),
         phone: phoneInput.trim()
       };
+
+      try {
+        const res = await fetch(`${apiUrl}/shop/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopId: currentShopId,
+            ...newProfile
+          })
+        });
+        if (!res.ok) throw new Error('Failed to save profile to server');
+      } catch (err) {
+        console.error('Error saving profile to backend:', err);
+      }
+
       localStorage.setItem(`shop_profile_${currentShopId}`, JSON.stringify(newProfile));
       setProfile(newProfile);
     }

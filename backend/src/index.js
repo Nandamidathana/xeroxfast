@@ -233,6 +233,58 @@ app.post('/upload', rateLimiter, upload.single('file'), async (req, res) => {
   }
 });
 
+// Shop Profile endpoints
+// A. Save or Update Shop Profile
+app.post('/shop/profile', async (req, res) => {
+  try {
+    const { shopId, name, purpose, phone } = req.body;
+    if (!shopId || !name) {
+      return res.status(400).json({ error: 'shopId and name are required' });
+    }
+
+    // Insert or replace shop profile (SQLite-specific syntax for upsert)
+    await dbRun(
+      `INSERT INTO shop_profiles (shop_id, name, purpose, phone)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(shop_id) DO UPDATE SET
+         name = excluded.name,
+         purpose = excluded.purpose,
+         phone = excluded.phone`,
+      [shopId, name, purpose, phone]
+    );
+
+    res.json({ message: 'Shop profile saved successfully' });
+  } catch (err) {
+    console.error('Error saving shop profile:', err);
+    res.status(500).json({ error: 'Failed to save shop profile.' });
+  }
+});
+
+// B. Retrieve Shop Profile
+app.get('/shop/profile', async (req, res) => {
+  try {
+    const { shopId } = req.query;
+    if (!shopId) {
+      return res.status(400).json({ error: 'shopId is required' });
+    }
+
+    const profile = await dbGet('SELECT * FROM shop_profiles WHERE shop_id = ?', [shopId]);
+    if (!profile) {
+      return res.status(404).json({ error: 'Shop profile not found' });
+    }
+
+    res.json({
+      shopId: profile.shop_id,
+      name: profile.name,
+      purpose: profile.purpose,
+      phone: profile.phone
+    });
+  } catch (err) {
+    console.error('Error retrieving shop profile:', err);
+    res.status(500).json({ error: 'Failed to retrieve shop profile.' });
+  }
+});
+
 // 2. Get Jobs for a shop
 app.get('/jobs', async (req, res) => {
   try {
