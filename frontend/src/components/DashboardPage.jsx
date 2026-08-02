@@ -175,12 +175,19 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
       });
-      if (!res.ok) throw new Error('Failed to update job options');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update job options');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs', shopId] });
       setEditJob(null);
+    },
+    onError: (err) => {
+      console.error(err);
+      alert(`Error updating job: ${err.message}`);
     }
   });
 
@@ -192,12 +199,19 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId }),
       });
-      if (!res.ok) throw new Error('Failed to mark job as printed');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to mark job as printed');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs', shopId] });
       setPrintConfirmationJob(null);
+    },
+    onError: (err) => {
+      console.error(err);
+      alert(`Error completing print: ${err.message}`);
     }
   });
 
@@ -681,10 +695,18 @@ export default function DashboardPage() {
                   Cancel / Re-print
                 </button>
                 <button
+                  disabled={printDoneMutation.isPending}
                   onClick={() => printDoneMutation.mutate(printConfirmationJob.id)}
-                  className="flex-1 py-2 bg-brand-success hover:bg-emerald-600 text-white font-semibold rounded-xl transition-all shadow-md"
+                  className="flex-1 py-2 bg-brand-success hover:bg-emerald-600 disabled:opacity-50 disabled:pointer-events-none text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
                 >
-                  Confirm Printed
+                  {printDoneMutation.isPending ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      Confirming...
+                    </>
+                  ) : (
+                    'Confirm Printed'
+                  )}
                 </button>
               </div>
             </motion.div>
