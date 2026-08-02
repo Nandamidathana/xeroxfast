@@ -99,7 +99,7 @@ export default function AdminPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              AirSketch Print
+              PrintX
             </h1>
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">QR Printing System</p>
           </div>
@@ -387,7 +387,7 @@ export default function AdminPage() {
 
       {/* Footer */}
       <footer className="max-w-6xl mx-auto w-full text-center text-xs text-slate-600 mt-8 pt-4 border-t border-slate-900/60 z-10 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <span>AirSketch Print © 2026. Made with passion for high-speed printing workflows.</span>
+        <span>PrintX © 2026. Made with passion for high-speed printing workflows.</span>
         <span className="text-[10px] text-slate-500 font-mono">Developed by <strong className="text-indigo-400 font-semibold uppercase tracking-wider">Nanda</strong></span>
       </footer>
     </div>

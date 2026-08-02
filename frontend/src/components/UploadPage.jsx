@@ -7,7 +7,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UploadPage() {
-  const { apiUrl, customerName, setCustomerName, rateBW, rateColor, currencySymbol } = useStore();
+  const { apiUrl, customerName, setCustomerName } = useStore();
   
   // Extract shopId from URL query parameters
   const queryParams = new URLSearchParams(window.location.search);
@@ -109,18 +109,17 @@ export default function UploadPage() {
     }));
   };
 
-  // Submit files
+  // Submit files in parallel with retry mechanisms
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
     setIsUploading(true);
     setUploadProgress(0);
-    const results = [];
-
-    const totalFiles = selectedFiles.length;
     
+    const totalFiles = selectedFiles.length;
+    let completedFiles = 0;
+
     try {
-      for (let i = 0; i < totalFiles; i++) {
-        const item = selectedFiles[i];
+      const uploadPromises = selectedFiles.map(async (item) => {
         const formData = new FormData();
         formData.append('file', item.file);
         formData.append('shopId', shopId);
@@ -130,24 +129,43 @@ export default function UploadPage() {
         formData.append('duplex', item.duplex);
         formData.append('customerName', customerName);
 
-        // Upload single file
-        const response = await fetch(`${apiUrl}/upload`, {
-          method: 'POST',
-          body: formData,
-        });
+        let attempt = 0;
+        let response;
+        let success = false;
+        let lastError;
 
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || `Failed to upload ${item.name}`);
+        while (attempt < 3 && !success) {
+          try {
+            response = await fetch(`${apiUrl}/upload`, {
+              method: 'POST',
+              body: formData,
+            });
+            if (response.ok) {
+              success = true;
+            } else {
+              const errData = await response.json();
+              lastError = new Error(errData.error || `Upload failed with status ${response.status}`);
+              attempt++;
+              if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          } catch (err) {
+            lastError = err;
+            attempt++;
+            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        if (!success) {
+          throw lastError || new Error(`Failed to upload ${item.name} after 3 attempts`);
         }
 
         const data = await response.json();
-        results.push(data.job);
+        completedFiles++;
+        setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
+        return data.job;
+      });
 
-        // Update progress bar
-        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
-      }
-
+      const results = await Promise.all(uploadPromises);
       setUploadResults(results);
       setSelectedFiles([]); // clear files
     } catch (err) {
@@ -279,9 +297,6 @@ export default function UploadPage() {
                 {/* Jobs Info List */}
                 <div className="w-full space-y-3 pt-2">
                   {uploadResults.map((job) => {
-                    const priceRate = job.color ? rateColor : rateBW;
-                    const jobCost = job.pages * job.copies * priceRate;
-                    
                     return (
                       <div 
                         key={job.id}
@@ -296,13 +311,11 @@ export default function UploadPage() {
                           </span>
                         </div>
 
-                        {/* Price Details Block */}
+                        {/* Config details block (No pricing) */}
                         <div className="flex justify-between items-center py-1.5 border-y border-slate-900/60 text-[10px] text-slate-400 font-medium">
-                          <span>Rate: {currencySymbol}{priceRate.toFixed(2)}/page</span>
+                          <span>Mode: {job.color ? 'Color' : 'B&W'}</span>
                           <span>Copies: x{job.copies}</span>
-                          <span className="text-emerald-400 font-bold font-mono text-xs">
-                            Total: {currencySymbol}{jobCost.toFixed(2)}
-                          </span>
+                          <span>Layout: {job.duplex ? 'Double Sided' : 'Single Sided'}</span>
                         </div>
 
                         <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
@@ -315,17 +328,6 @@ export default function UploadPage() {
                       </div>
                     );
                   })}
-
-                  {/* Summary Total Cost Card */}
-                  <div className="p-3 bg-indigo-950/20 rounded-xl border border-indigo-500/20 text-center flex items-center justify-between text-xs">
-                    <span className="text-slate-300 font-semibold flex items-center gap-1">
-                      <Landmark className="h-4 w-4 text-indigo-400" />
-                      Grand Total Cost:
-                    </span>
-                    <span className="text-base font-extrabold text-indigo-300 font-mono">
-                      {currencySymbol}{uploadResults.reduce((acc, job) => acc + (job.pages * job.copies * (job.color ? rateColor : rateBW)), 0).toFixed(2)}
-                    </span>
-                  </div>
                 </div>
 
                 <button
@@ -430,46 +432,31 @@ export default function UploadPage() {
                         </div>
 
                         {/* File Print Config Options */}
-                        <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-slate-900/60 text-xs">
+                        <div className="grid grid-cols-3 gap-3 pt-2.5 border-t border-slate-900/60 text-xs items-center">
                           {/* Copies Config */}
-                          <div className="space-y-1">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Copies</span>
-                            <div className="flex items-center space-x-1">
+                          <div className="space-y-1 col-span-1">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-center">Copies</span>
+                            <div className="flex items-center justify-center space-x-1">
                               <button
                                 onClick={() => updateFileSetting(item.id, 'copies', Math.max(1, item.copies - 1))}
-                                className="h-7 w-7 rounded bg-slate-855 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white"
+                                className="h-6 w-6 rounded bg-slate-855 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white"
                               >
                                 <Minus className="h-3 w-3" />
                               </button>
-                              <span className="w-8 text-center text-xs font-bold font-mono">
+                              <span className="w-5 text-center text-xs font-bold font-mono">
                                 {item.copies}
                               </span>
                               <button
                                 onClick={() => updateFileSetting(item.id, 'copies', item.copies + 1)}
-                                className="h-7 w-7 rounded bg-slate-855 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white"
+                                className="h-6 w-6 rounded bg-slate-855 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white"
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
                             </div>
                           </div>
 
-                          {/* Paper Size Config */}
-                          <div className="space-y-1">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Paper Size</span>
-                            <select
-                              value={item.paperSize}
-                              onChange={(e) => updateFileSetting(item.id, 'paperSize', e.target.value)}
-                              className="w-full h-7 rounded px-1.5 bg-slate-855 border border-slate-850 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-brand-primary"
-                            >
-                              <option value="A4">A4</option>
-                              <option value="Letter">Letter</option>
-                              <option value="A3">A3</option>
-                              <option value="Legal">Legal</option>
-                            </select>
-                          </div>
-
                           {/* Color Switch */}
-                          <div className="flex items-center justify-between pt-1 col-span-1">
+                          <div className="flex flex-col items-center justify-center space-y-1 col-span-1">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Color Print</span>
                             <button
                               onClick={() => updateFileSetting(item.id, 'color', !item.color)}
@@ -484,7 +471,7 @@ export default function UploadPage() {
                           </div>
 
                           {/* Duplex Switch */}
-                          <div className="flex items-center justify-between pt-1 col-span-1">
+                          <div className="flex flex-col items-center justify-center space-y-1 col-span-1">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">2-Sided</span>
                             <button
                               onClick={() => updateFileSetting(item.id, 'duplex', !item.duplex)}
@@ -497,14 +484,6 @@ export default function UploadPage() {
                               }`} />
                             </button>
                           </div>
-                        </div>
-
-                        {/* Live Price Estimation Display */}
-                        <div className="flex justify-between items-center text-[10px] font-medium text-slate-400 bg-slate-900/60 p-2 rounded-xl border border-slate-850">
-                          <span>Est. Page Rate:</span>
-                          <span className="text-indigo-400 font-bold font-mono text-xs">
-                            {currencySymbol}{(item.color ? rateColor : rateBW).toFixed(2)}
-                          </span>
                         </div>
                       </div>
                     ))}
@@ -545,7 +524,7 @@ export default function UploadPage() {
 
       {/* Footer / Watermark */}
       <footer className="w-full text-center text-[10px] text-slate-600 mt-8 pt-4 border-t border-slate-900/40 z-10 font-mono">
-        AirSketch Print © 2026 • Developed by <strong className="text-indigo-400 font-semibold uppercase tracking-wider">Nanda</strong>
+        PrintX © 2026 • Developed by <strong className="text-indigo-400 font-semibold uppercase tracking-wider">Nanda</strong>
       </footer>
     </div>
   );

@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardPage() {
-  const { apiUrl, soundEnabled, toggleSound, rateBW, rateColor, currencySymbol, setPricing } = useStore();
+  const { apiUrl, soundEnabled, toggleSound } = useStore();
   const queryClient = useQueryClient();
 
   // Extract shopId from URL query string
@@ -64,8 +64,61 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error('Failed to fetch jobs');
       return res.json();
     },
-    refetchInterval: 3000, // Poll every 3 seconds
+    retry: 3,
+    retryDelay: 1000,
+    refetchInterval: 60000, // Backup poll every 60s
   });
+
+  // WebSocket connection for real-time instant synchronization
+  useEffect(() => {
+    if (!apiUrl) return;
+    
+    // Replace http/https with ws/wss
+    const wsUrl = apiUrl.replace(/^http/, 'ws');
+    let socket;
+    let reconnectTimer;
+    
+    const connectSocket = () => {
+      console.log('Connecting to WebSocket at:', wsUrl);
+      socket = new WebSocket(wsUrl);
+      
+      socket.onopen = () => {
+        console.log('WebSocket connection successfully established');
+      };
+      
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.shopId === shopId) {
+            console.log('[WebSocket] Job update received, refetching...');
+            queryClient.invalidateQueries({ queryKey: ['jobs', shopId] });
+          }
+        } catch (err) {
+          console.error('[WebSocket] Error parsing socket data:', err);
+        }
+      };
+      
+      socket.onclose = (event) => {
+        console.log('WebSocket closed. Reconnecting in 3 seconds...', event.reason);
+        reconnectTimer = setTimeout(connectSocket, 3000);
+      };
+      
+      socket.onerror = (err) => {
+        console.error('WebSocket encountered an error:', err);
+        socket.close();
+      };
+    };
+    
+    connectSocket();
+    
+    return () => {
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [apiUrl, shopId, queryClient]);
 
   // Sound triggering on new jobs
   useEffect(() => {
@@ -158,10 +211,6 @@ export default function DashboardPage() {
   const totalPagesToPrint = jobs
     .filter(j => j.status === 'waiting' || j.status === 'printing')
     .reduce((acc, job) => acc + (job.pages * job.copies), 0);
-  const totalEstRevenue = jobs
-    .filter(j => j.status === 'waiting' || j.status === 'printing')
-    .reduce((acc, job) => acc + (job.pages * job.copies * (job.color ? rateColor : rateBW)), 0);
-
   // Filtered jobs array
   const filteredJobs = jobs.filter(job => job.status === activeTab);
 
@@ -186,16 +235,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-2xl bg-slate-950/40 border border-slate-800 space-y-1">
+          <div className="space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800 space-y-1 text-center">
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Jobs Active</span>
-              <span className="text-2xl font-extrabold text-indigo-400">{waitingJobsCount + printingJobsCount}</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-slate-950/40 border border-slate-800 space-y-1">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Est. Revenue</span>
-              <span className="text-xl font-extrabold text-emerald-400 font-mono truncate block" title={`${currencySymbol}${totalEstRevenue.toFixed(2)}`}>
-                {currencySymbol}{totalEstRevenue.toFixed(2)}
-              </span>
+              <span className="text-3xl font-extrabold text-indigo-400">{waitingJobsCount + printingJobsCount}</span>
             </div>
           </div>
 
@@ -220,50 +263,6 @@ export default function DashboardPage() {
                   soundEnabled ? 'right-1' : 'left-1'
                 }`} />
               </button>
-            </div>
-
-            {/* Pricing Configuration Form */}
-            <div className="space-y-3 pt-3 border-t border-slate-800">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Price Settings</span>
-              
-              {/* Currency Symbol Selection */}
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-[11px] text-slate-400">Currency</span>
-                <select
-                  value={currencySymbol}
-                  onChange={(e) => setPricing(rateBW, rateColor, e.target.value)}
-                  className="px-1.5 py-1 bg-slate-950 border border-slate-850 rounded text-slate-200 text-[11px] outline-none"
-                >
-                  <option value="₹">₹ (INR)</option>
-                  <option value="$">$ (USD)</option>
-                  <option value="€">€ (EUR)</option>
-                  <option value="£">£ (GBP)</option>
-                </select>
-              </div>
-
-              {/* B&W Rate Input */}
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-[11px] text-slate-400">B&W Rate</span>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={rateBW}
-                  onChange={(e) => setPricing(parseFloat(e.target.value) || 0, rateColor, currencySymbol)}
-                  className="w-16 px-1.5 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs font-mono text-right outline-none focus:border-brand-primary"
-                />
-              </div>
-
-              {/* Color Rate Input */}
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-[11px] text-slate-400">Color Rate</span>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={rateColor}
-                  onChange={(e) => setPricing(rateBW, parseFloat(e.target.value) || 0, currencySymbol)}
-                  className="w-16 px-1.5 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs font-mono text-right outline-none focus:border-brand-primary"
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -389,13 +388,6 @@ export default function DashboardPage() {
                   <div className="text-[11px] font-semibold text-indigo-300 flex items-center gap-1 mt-1">
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Sender:</span>
                     <span className="truncate max-w-[140px]" title={job.customerName}>{job.customerName || 'Anonymous'}</span>
-                  </div>
-                  {/* Print Cost Badge */}
-                  <div className="mt-2.5 pt-2.5 border-t border-slate-800 flex justify-between items-center text-xs">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Charge Amount:</span>
-                    <span className="font-extrabold text-emerald-400 font-mono text-xs">
-                      {currencySymbol}{(job.pages * job.copies * (job.color ? rateColor : rateBW)).toFixed(2)}
-                    </span>
                   </div>
                 </div>
 

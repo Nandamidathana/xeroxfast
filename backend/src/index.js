@@ -4,6 +4,8 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { initDB, dbRun, dbGet, dbAll } = require('./db');
 const { countPages } = require('./pageCounter');
@@ -11,6 +13,28 @@ const { startCleanupCron } = require('./cleanup');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Create HTTP server wrapping Express app
+const server = http.createServer(app);
+
+// Initialize WebSocket Server
+const wss = new WebSocket.Server({ server });
+
+// WebSocket broadcasting helper
+function broadcast(data) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+}
+
+wss.on('connection', (ws) => {
+  console.log('New WebSocket connection established');
+  ws.on('close', () => {
+    console.log('WebSocket client disconnected');
+  });
+});
 
 // Enable CORS and JSON parsing
 app.use(cors());
@@ -303,6 +327,9 @@ app.post('/update', async (req, res) => {
       [updatedCopies, updatedColor, updatedPaperSize, updatedDuplex, updatedStatus, jobId]
     );
 
+    // Notify connected dashboards
+    broadcast({ event: 'job_updated', shopId: job.shop_id, jobId });
+
     res.json({ message: 'Job updated successfully' });
   } catch (err) {
     console.error(err);
@@ -338,6 +365,9 @@ app.post('/print', async (req, res) => {
       `UPDATE jobs SET status = 'done', filepath = NULL WHERE id = ?`,
       [jobId]
     );
+
+    // Notify connected dashboards
+    broadcast({ event: 'job_updated', shopId: job.shop_id, jobId });
 
     res.json({ message: 'Job marked as printed and file deleted.' });
   } catch (err) {
@@ -501,7 +531,7 @@ const startServer = async () => {
   // Start Cron Job
   startCleanupCron();
 
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   });
 };
